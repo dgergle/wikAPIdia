@@ -1,6 +1,8 @@
 package org.wikapidia.core.dao;
 
-public class DaoException extends Exception {
+import org.wikapidia.core.WikapidiaException;
+
+public class DaoException extends WikapidiaException {
     public DaoException(Exception e) {
         super(e);
     }
