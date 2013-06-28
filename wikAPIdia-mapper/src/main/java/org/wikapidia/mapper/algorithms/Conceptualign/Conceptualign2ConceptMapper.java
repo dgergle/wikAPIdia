@@ -11,6 +11,7 @@ import org.wikapidia.core.model.LocalPage;
 import org.wikapidia.core.model.UniversalPage;
 import org.wikapidia.mapper.ConceptMapper;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -25,25 +26,26 @@ public class Conceptualign2ConceptMapper extends ConceptMapper{
 
     private final InterlanguageLinkDao illDao;
 
+    private static final double MIN_VOTES_RATIO = 0.5;
+    private static final int MAX_VOTES_PER_LANG = 1;
+
     public Conceptualign2ConceptMapper(InterlanguageLinkDao illDao, LocalPageDao lpDao) {
         super(lpDao);
         this.illDao = illDao;
     }
 
     @Override
-    public Iterator<UniversalPage> getConceptMap(LanguageSet ls) throws WikapidiaException, DaoException {
+    public Iterator<UniversalPage> getConceptMap(LanguageSet ls) throws WikapidiaException{
 
         JGraphTILLGraph illGraph = new JGraphTILLGraph(illDao, localPageDao);
 
         BreadthFirstIterator<LanguagedLocalId, ILLEdge> bfi = new BreadthFirstIterator<LanguagedLocalId, ILLEdge>(illGraph);
 
         List<ConnectedComponentHandler> ccHandlers = new ArrayList<ConnectedComponentHandler>();
-        ccHandlers.add(new Conceptualign1ConnectedComponentHandler(wikapidia));
-        ccHandlers.add(new Conceptualign2ConnectedComponentHandler(0.5, 1, true, wikapidia));
-
+        ccHandlers.add(new Conceptualign2ConnectedComponentHandler(MIN_VOTES_RATIO, MAX_VOTES_PER_LANG, true, wikapidia));
 
         ConnectedComponentTraversalListener listener =
-                new ConnectedComponentTraversalListener(wStatement, wikapidia, type, illGraph, ccHandlers);
+                new ConnectedComponentTraversalListener(illGraph, ccHandlers, this.localPageDao);
         bfi.addTraversalListener(listener);
         while (bfi.hasNext()){
             LanguagedLocalId localId = bfi.next();
