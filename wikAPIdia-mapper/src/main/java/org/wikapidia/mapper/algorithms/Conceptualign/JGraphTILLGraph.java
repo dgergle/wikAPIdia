@@ -196,20 +196,18 @@ public class JGraphTILLGraph implements
     @Override
     public Set<LanguagedLocalId> vertexSet() {
 
-        try{
+
             HashSet<LanguagedLocalId> rVal = new HashSet<LanguagedLocalId>();
             LanguageSet ls = LanguageSet.getSetOfAllLanguages();
 //            LanguageSet ls = lcqs.getLanguageSet();
             for (Language lang : ls){
-                List<Integer> allLocalIds = lcqs.getAllLocalIds(curLangId); // *** NOT CURRENTLY POSSIBLE TO CONVERT ***
+                List<Integer> allLocalIds = null;//lcqs.getAllLocalIds(curLangId); // *** NOT CURRENTLY POSSIBLE TO CONVERT ***
                 for (Integer localId : allLocalIds){
                     rVal.add(new LanguagedLocalId(localId, lang));
                 }
             }
             return rVal;
-        }catch(WikapidiaException e){
-            throw new RuntimeException(e);
-        }
+
 
     }
 

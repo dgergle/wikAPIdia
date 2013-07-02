@@ -48,7 +48,9 @@ public abstract class ConceptualignConceptMapper extends ConceptMapper {
             LanguagedLocalId localId = bfi.next();
         }
 
-        return new ConceptMapper(listener.getFoundUniversalPages());
+        return null;
+
+//        return new ConceptMapper(listener.getFoundUniversalPages());
     }
 
 
