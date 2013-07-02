@@ -1,19 +1,27 @@
 package org.wikapidia.download;
 
+import com.google.common.collect.Multimap;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.wikapidia.conf.Configuration;
+import org.wikapidia.conf.ConfigurationException;
+import org.wikapidia.conf.Configurator;
 import org.wikapidia.conf.DefaultOptionBuilder;
 import org.wikapidia.core.WikapidiaException;
+import org.wikapidia.core.cmd.Env;
 import org.wikapidia.core.lang.Language;
 
 import org.jsoup.select.Elements;
 import org.jsoup.nodes.Element;
+import org.wikapidia.core.lang.LanguageSet;
+import sun.security.provider.MD5;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -31,15 +39,14 @@ import java.util.regex.Pattern;
  * are pulled.
  *
  */
-    public class RequestedLinkGetter {
+public class RequestedLinkGetter {
 
+    private static final Logger LOG = Logger.getLogger(RequestedLinkGetter.class.getName());
     private static final String DATE_FORMAT = "yyyyMMdd";
 
-    private Language lang;
-    private List<LinkMatcher> matchers;
-    private Date requestDate;    // This is the date requested by the user.
-
-    private static final Logger LOG = Logger.getLogger(DumpLinkGetter.class.getName());
+    private final Language lang;
+    private final List<LinkMatcher> matchers;
+    private final Date requestDate;    // This is the date requested by the user.
 
     public RequestedLinkGetter(Language lang, List<LinkMatcher> matchers, Date requestDate) {
         this.lang = lang;
@@ -55,7 +62,7 @@ import java.util.regex.Pattern;
      */
     protected List<Date> getAllDates() throws IOException, ParseException {
         List<Date> availableDate = new ArrayList<Date>();
-        URL langWikiPageUrl = new URL(DumpLinkGetter.BASEURL_STRING+ "/" + lang.getLangCode().replace("-", "_") + "wiki/");
+        URL langWikiPageUrl = new URL(DumpLinkGetter.BASEURL_STRING + "/" + lang.getLangCode().replace("-", "_") + "wiki/");
         Document doc = Jsoup.parse(IOUtils.toString(langWikiPageUrl.openStream()));
         Elements availableDates = doc.select("tbody").select("td.n").select("a[href]");
         for (Element element : availableDates) {
@@ -102,17 +109,24 @@ import java.util.regex.Pattern;
         return dateFormatter.parse(dateString);
     }
 
-    protected HashMap<String, HashMap<String, List<URL>>> getDumps() throws ParseException, IOException, WikapidiaException {
+    /**
+     * Get dump file links of the most recent available before the requestDate.
+     * @return
+     * @throws ParseException
+     * @throws IOException
+     * @throws WikapidiaException
+     */
+    protected Map<String, Multimap<LinkMatcher, DumpLinkInfo>> getDumps() throws ParseException, IOException, WikapidiaException {
         List<String> availableDates = availableDumpDatesSorted(getAllDates());
-        HashMap<String, HashMap<String, List<URL>>> map = new HashMap<String, HashMap<String, List<URL>>>();
+        Map<String, Multimap<LinkMatcher, DumpLinkInfo>> map = new HashMap<String, Multimap<LinkMatcher, DumpLinkInfo>>();
         List<LinkMatcher> unfoundMatchers = new ArrayList<LinkMatcher>(matchers);
-        for (int i = availableDates.size() -1; i > -1; i--) {
+        for (int i = availableDates.size() - 1; i > -1; i--) {
             DumpLinkGetter dumpLinkGetter = new DumpLinkGetter(lang, unfoundMatchers, availableDates.get(i));
-            HashMap<String, List<URL>> batchDumps = dumpLinkGetter.getDumpFiles();
+            Multimap<LinkMatcher, DumpLinkInfo> batchDumps = dumpLinkGetter.getDumpFiles(dumpLinkGetter.getFileLinks());
             map.put(availableDates.get(i), batchDumps);
             for (int j = 0; j < unfoundMatchers.size(); j++) {
                 LinkMatcher linkMatcher = unfoundMatchers.get(j);
-                if (batchDumps.keySet().contains(linkMatcher.getName())) {
+                if (batchDumps.keySet().contains(linkMatcher)) {
                     unfoundMatchers.remove(linkMatcher);
                     j--;
                 }
@@ -134,28 +148,19 @@ import java.util.regex.Pattern;
      * @throws WikapidiaException
      * @throws ParseException
      */
-    public static void main(String[] args) throws IOException, WikapidiaException, ParseException {
+    public static void main(String[] args) throws IOException, WikapidiaException, ParseException, ConfigurationException {
 
         Options options = new Options();
-
-        options.addOption(
-                new DefaultOptionBuilder()
-                        .hasArgs()
-                        .withLongOpt("languages")
-                        .withValueSeparator(',')
-                        .withDescription("List of languages, separated by a comma (e.g. 'en,de'). Default is all languages.")
-                        .create("l"));
         options.addOption(
                 new DefaultOptionBuilder()
                         .hasArgs()
                         .withValueSeparator(',')
                         .withLongOpt("names")
-                        .withDescription("Names of file types, separated by comma (e.g. 'articles,abstracts'). Default is everything.")
+                        .withDescription("Names of file types, separated by comma (e.g. 'articles,abstracts'). \nDefault is " + new Configuration().get().getStringList("download.matcher"))
                         .create("n"));
         options.addOption(
                 new DefaultOptionBuilder()
                         .hasArg()
-                        .isRequired()
                         .withLongOpt("output")
                         .withDescription("Path to output file.")
                         .create("o"));
@@ -166,6 +171,7 @@ import java.util.regex.Pattern;
                         .withDescription("Dumps are pulled from on or before this date. Default is today")
                         .create("d"));
 
+        Env.addStandardOptions(options);
         CommandLineParser parser = new PosixParser();
         CommandLine cmd;
 
@@ -177,7 +183,10 @@ import java.util.regex.Pattern;
             return;
         }
 
-        List<LinkMatcher> linkMatchers = Arrays.asList(LinkMatcher.values());
+        Env env = new Env(cmd);
+        Configurator conf = env.getConfigurator();
+
+        List<LinkMatcher> linkMatchers = LinkMatcher.getListByNames(conf.getConf().get().getStringList("download.matcher"));
         if (cmd.hasOption("n")) {
             linkMatchers = new ArrayList<LinkMatcher>();
             for (String name : cmd.getOptionValues("n")) {
@@ -191,24 +200,7 @@ import java.util.regex.Pattern;
             }
         }
 
-        List<Language> languages = Arrays.asList(Language.LANGUAGES);
-        if (cmd.hasOption("l")) {
-            languages = new ArrayList<Language>();
-            for (String langCode : cmd.getOptionValues("l")) {
-                try {
-                    languages.add(Language.getByLangCode(langCode));
-                } catch (IllegalArgumentException e) {
-                    String langs = "";
-                    for (Language language : Language.LANGUAGES) {
-                        langs += "," + language.getLangCode();
-                    }
-                    langs = langs.substring(1);
-                    System.err.println("Invalid language code: " + langCode
-                            + "\nValid language codes: \n" + langs);
-                    System.exit(1);
-                }
-            }
-        }
+        LanguageSet languages = env.getLanguages();
 
         Date getDumpByDate = new Date();
         if (cmd.hasOption("d")) {
@@ -221,17 +213,24 @@ import java.util.regex.Pattern;
             }
         }
 
-        String filePath = cmd.getOptionValue('o');
+        String filePath = conf.getConf().get().getString("download.listFile");
+        if (cmd.hasOption('o')) {
+            filePath = cmd.getOptionValue('o');
+        }
 
         List<String> result = new ArrayList<String>();
         for (Language language : languages) {
             RequestedLinkGetter requestedLinkGetter = new RequestedLinkGetter(language, linkMatchers, getDumpByDate);
             try {
-                HashMap<String, HashMap<String, List<URL>>> urls = requestedLinkGetter.getDumps();
-                for (String dumpDate : urls.keySet()) {
-                    for (String linkName : urls.get(dumpDate).keySet()) {
-                        for (URL url : urls.get(dumpDate).get(linkName)) {
-                            result.add(language.getLangCode() + "\t" + dumpDate + "\t" + linkName + "\t" + url);
+                Map<String, Multimap<LinkMatcher, DumpLinkInfo>> dumpLinks = requestedLinkGetter.getDumps();
+                for (String dumpDate : dumpLinks.keySet()) {
+                    for (LinkMatcher linkMatcher : dumpLinks.get(dumpDate).keySet()) {
+                        for (DumpLinkInfo linkInfo : dumpLinks.get(dumpDate).get(linkMatcher)) {
+                            result.add(linkInfo.getLanguage().getLangCode() + "\t" +
+                                    linkInfo.getDate() + "\t" +
+                                    linkInfo.getLinkMatcher().getName() + "\t" +
+                                    linkInfo.getUrl() + "\t" +
+                                    linkInfo.getMd5());
                         }
                     }
                 }

@@ -134,6 +134,11 @@ public class Language implements Comparable<Language>{
     }
 
     @Override
+    public String toString() {
+        return this.getEnLangName();
+    }
+
+    @Override
     public boolean equals(Object obj){
 
         if (obj instanceof Language){

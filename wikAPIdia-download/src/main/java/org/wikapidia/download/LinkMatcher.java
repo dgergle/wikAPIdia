@@ -1,6 +1,7 @@
 package org.wikapidia.download;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -53,8 +54,8 @@ public enum LinkMatcher {
     CURRENT_MEDIA_META("current_media_metas", Pattern.compile(".+-image.sql.gz")),
     SITE_STATS        ("site_stats", Pattern.compile(".+-site_stats.sql.gz")),
     FLAGGED_REVISION  ("flagged_revisions", Pattern.compile(".+-flaggedrevs.sql.gz")),
-    FLAGGED_PAGES     ("flagged_pages", Pattern.compile(".+-flaggedpages.sql.gz"));
-//    MD5               ("md5_checksums", Pattern.compile(".+-md5sums.txt"));
+    FLAGGED_PAGES     ("flagged_pages", Pattern.compile(".+-flaggedpages.sql.gz")),
+    MD5               ("md5_checksums", Pattern.compile(".+-md5sums.txt"));
 
 
     private String name;
@@ -103,6 +104,14 @@ public enum LinkMatcher {
             }
         }
         return null;
+    }
+
+    public static List<LinkMatcher> getListByNames(List<String> listNames) {
+        List<LinkMatcher> listMatchers = new ArrayList<LinkMatcher>();
+        for (String name : listNames) {
+            listMatchers.add(getByName(name));
+        }
+        return listMatchers;
     }
 
     static public List<String> getAllNames() {

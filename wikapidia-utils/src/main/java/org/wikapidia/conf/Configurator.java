@@ -120,15 +120,19 @@ public class Configurator {
             finder.findClasses (foundClasses,filter);
 
             for (ClassInfo classInfo : foundClasses) {
-                LOG.info("registering component " + classInfo);
+                LOG.fine("registering component " + classInfo);
                 registerProvider(classInfo.getClassName());
             }
         }
 
+        int total = 0;
         for (Class c : providers.keySet()) {
             ProviderSet pset = providers.get(c);
-            LOG.info("installed " + pset.providers.size() + " configurators for " + pset.type);
+            total += pset.providers.size();
+            LOG.fine("installed " + pset.providers.size() + " configurators for " + pset.type);
         }
+        LOG.info("configurator installed " + total + " providers for " +
+                providers.size() + " classes");
     }
 
 
@@ -193,6 +197,10 @@ public class Configurator {
         }
         ProviderSet pset = providers.get(klass);
 
+        // If name is "default", treat it as null for default option
+        if (name != null && name.equalsIgnoreCase("default")) {
+            name = null;
+        }
 
         // If name is null, check to see if there is a default entry or only one option.
         if (name == null) {
