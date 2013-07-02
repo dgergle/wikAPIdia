@@ -108,7 +108,7 @@ public class PureWikidataConceptMapper extends ConceptMapper {
         }
 
         if (illegalLangs.size() > 0){
-            LOG.warning("Found some languages in WikiData dump not supported by wikAPIdia: " + illegalLangs.toString());
+            LOG.warning("Found some languages in WikiData dump not supported by wikAPIdia: " + StringUtils.join(illegalLangs));
         }
 
         return new MapperIterator<UniversalPage>(backend.keySet()) {
