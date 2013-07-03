@@ -101,6 +101,22 @@ public class LanguageSet implements Iterable<Language> {
     }
 
 
+    /**
+     * Returns true if LanguageSet contains language represented by language code. If language code
+     * is not supported by wikAPIdia, will always return false.
+     * @param langCode
+     * @return
+     */
+    public boolean containsLanguage(String langCode){
+        try{
+            Language lang = Language.getByLangCode(langCode);
+            return containsLanguage(lang);
+        }catch(IllegalArgumentException e){
+            return false;
+        }
+    }
+
+
     public boolean equals(Object o){
         if (o instanceof LanguageSet){
             String myString = this.toString();

@@ -1,16 +1,26 @@
 package org.wikapidia.mapper;
 
+import com.google.common.collect.*;
+import edu.emory.mathcs.backport.java.util.Collections;
 import org.wikapidia.conf.ConfigurationException;
 import org.wikapidia.core.WikapidiaException;
 import org.wikapidia.core.dao.DaoException;
+import org.wikapidia.core.dao.DaoFilter;
 import org.wikapidia.core.dao.LocalLinkDao;
 import org.wikapidia.core.dao.LocalPageDao;
+import org.wikapidia.core.lang.Language;
 import org.wikapidia.core.lang.LanguageSet;
 import org.wikapidia.core.model.LocalPage;
+import org.wikapidia.core.model.NameSpace;
 import org.wikapidia.core.model.UniversalLink;
 import org.wikapidia.core.model.UniversalPage;
 
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -21,8 +31,9 @@ import java.util.Iterator;
  */
 public abstract class ConceptMapper {
 
-    private final int id;
+    private static Logger LOG = Logger.getLogger(ConceptMapper.class.getName());
 
+    private final int id;
     protected final LocalPageDao<LocalPage> localPageDao;
 
     /**
@@ -47,6 +58,63 @@ public abstract class ConceptMapper {
      * @throws DaoException
      * @throws ConfigurationException
      */
-    public abstract Iterator<UniversalPage> getConceptMap(LanguageSet ls) throws WikapidiaException, DaoException;
+    public Iterator<UniversalPage> getConceptMap(LanguageSet ls) throws WikapidiaException{
+
+        Set<UniversalPage> rVal = Sets.newHashSet();
+
+        for (Language lang : ls){
+
+            Iterable<LocalPage> articles = localPageDao.get(new DaoFilter().setLanguages(ls)
+                    .setNameSpaces(Collections.singleton(NameSpace.ARTICLE)));
+
+        }
+
+    }
+
+    protected abstract Collection<UniversalPage> getConceptMapForStandardNamespaces(Iterable<LocalPage> localPages) throws WikapidiaException;
+
+    /**
+     * Maps local user pages to universal user pages under the assumption that all user pages have been converted
+     * to the unified login system. In this system, user names are global to all Wikipedia Foundation wikis. As of this writing (July 2013),
+     * not all user names have been converted, but the number of conflicting user names is expected to be small. The number of misaligned
+     * user names is unknown, however.
+     *
+     * As the unified login system gains prominence, this approach will become more and more accurate. For more info,
+     * see http://meta.wikimedia.org/wiki/Help:Unified_login
+     *
+     * @param startUnivId The first available universal id for user pages
+     * @param userPages All userpages in languages in ls
+     * @return
+     * @throws WikapidiaException
+     */
+    private Collection<UniversalPage> getConceptMapForUserPages(int startUnivId, Iterable<LocalPage> userPages) throws WikapidiaException{
+
+        Map<String, Multimap<Language, LocalPage>> mmap = Maps.newHashMap();
+        for(LocalPage localPage : userPages){
+            String userName = localPage.getTitle().getNameAndDisambiguator().name;
+            Multimap<Language, LocalPage> curMmap = mmap.get(userName);
+            if (curMmap == null){
+                curMmap = HashMultimap.create();
+                mmap.put(userName, curMmap);
+            }
+            curMmap.put(localPage.getLanguage(), localPage);
+
+        }
+
+//        LOG.log(Level.INFO, "Creating universal user pages");
+//        Collection<UniversalPage> rVal = Sets.newHashSet();
+//        int univId = startUnivId;
+//        for (String curUserName : mmap.keySet()){
+//            Multimap<Language, LocalPage> curLangMMap = HashMultimap.create();
+//            for (LocalPage userPage : userPages){
+//                assert(!curLangMMap.containsKey(userPage.getLanguage())); // by definition, there should be only one user page per language
+//                curLangMMap.put(userPage.getLanguage(), userPage);
+//            }
+//            UniversalPage up = new UniversalPage(univId, this.getId(), NameSpace.USER, curLangMMap);
+//            rVal.add(up);
+//        }
+
+
+    }
 
 }
