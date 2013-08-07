@@ -37,7 +37,8 @@ import java.util.Map;
 
 public class PureWikidataConceptMapper extends ConceptMapper {
 
-    private static final String WIKIDATA_MAPPING_FILE_PATH = "/Users/bjhecht/Downloads/wikidatawiki-20130527-wb_items_per_site.sql";
+    // Need to make it so it pulls from "http://dumps.wikimedia.org/wikidatawiki/latest/wikidatawiki-latest-wb_items_per_site.sql.gz"
+    private static final String WIKIDATA_MAPPING_FILE_PATH = "/Users/bjhecht/Downloads/wikidatawiki-latest-wb_items_per_site.sql";
 
     protected PureWikidataConceptMapper(int id, LocalPageDao<LocalPage> localPageDao) {
         super(id, localPageDao);    //To change body of overridden methods use File | Settings | File Templates.
