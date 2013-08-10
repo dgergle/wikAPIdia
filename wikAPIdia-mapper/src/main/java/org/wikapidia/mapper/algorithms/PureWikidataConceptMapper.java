@@ -5,6 +5,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.typesafe.config.Config;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.wikapidia.conf.Configuration;
 import org.wikapidia.conf.ConfigurationException;
@@ -18,6 +19,7 @@ import org.wikapidia.core.lang.LanguageSet;
 import org.wikapidia.core.lang.LocalId;
 import org.wikapidia.core.model.LocalPage;
 import org.wikapidia.core.model.NameSpace;
+import org.wikapidia.core.model.Title;
 import org.wikapidia.core.model.UniversalPage;
 import org.wikapidia.mapper.ConceptMapper;
 import org.wikapidia.mapper.MapperIterator;
@@ -27,6 +29,7 @@ import java.io.*;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /**
  * User: bjhecht
@@ -39,6 +42,7 @@ public class PureWikidataConceptMapper extends ConceptMapper {
 
     // Need to make it so it pulls from "http://dumps.wikimedia.org/wikidatawiki/latest/wikidatawiki-latest-wb_items_per_site.sql.gz"
     private static final String WIKIDATA_MAPPING_FILE_PATH = "/Users/bjhecht/Downloads/wikidatawiki-latest-wb_items_per_site.sql";
+    private static Logger LOG = Logger.getLogger(PureWikidataConceptMapper.class.getName());
 
     protected PureWikidataConceptMapper(int id, LocalPageDao<LocalPage> localPageDao) {
         super(id, localPageDao);    //To change body of overridden methods use File | Settings | File Templates.
@@ -51,7 +55,6 @@ public class PureWikidataConceptMapper extends ConceptMapper {
 
     @Override
     public Iterator<UniversalPage> getConceptMap(LanguageSet ls) throws DaoException {
-//        UniversalPage up = new UniversalPage(
 
         File wikiDataDumpFile = new File(WIKIDATA_MAPPING_FILE_PATH);
 
@@ -61,20 +64,41 @@ public class PureWikidataConceptMapper extends ConceptMapper {
         // loop through sql dump
         MySqlDumpParser dumpParser = new MySqlDumpParser();
         Iterable<Object[]> lines = dumpParser.parse(wikiDataDumpFile);
+        int lineCounter = 0; int validLineCounter = 0;
         for (Object[] line : lines){
             String langCode = ((String)line[2]).replaceAll("wiki","");
-            Language lang = Language.getByLangCode(langCode);
-            if (ls.containsLanguage(lang)){
-                Integer localId = (Integer)line[0];
-                Integer univId = (Integer)line[1];
-                LocalPage localPage = localPageDao.getById(lang, localId);
-                if (!backend.containsKey(univId)){
-                    Multimap<Language, LocalId> mmap = HashMultimap.create();
-                    backend.put(univId, mmap);
-                    nsBackend.put(univId, localPage.getNameSpace()); // defines the universal page as having the namespace of the first LocalPage encountered
+            try{
+                Language lang = Language.getByLangCode(langCode);
+                if (ls.containsLanguage(lang)){
+                    Integer univId = (Integer)line[1];
+                    String strTitle = (String)line[3];
+                    Title title = new Title(strTitle, lang);
+                    LocalPage localPage = localPageDao.getByTitle(lang, title, title.getNamespace());
+                    if (localPage != null){
+                        if (!backend.containsKey(univId)){
+                            Multimap<Language, LocalId> mmap = HashMultimap.create();
+                            backend.put(univId, mmap);
+                            nsBackend.put(univId, localPage.getNameSpace()); // defines the universal page as having the namespace of the first LocalPage encountered
+                        }
+                        backend.get(univId).put(lang, localPage.toLocalId());
+                        validLineCounter++;
+                        if (validLineCounter % 10 == 0){
+                            LOG.info("Number of valid LocalPages mapped: " + validLineCounter);
+                        }
+                    }else{
+                        LOG.info("Found a local page in the wikidata file that is not in the LocalPageDao: " +
+                                strTitle + " (" + langCode + ")");
+                    }
                 }
-                backend.get(univId).put(lang, localPage.toLocalId());
+            }catch(IllegalArgumentException e){
+                //occurs when there is a language in the Wikidata file that is not in the list of languages supported by the WikAPIdia software
+                LOG.finest("Found language in Wikidata file that is not supported by wikAPIdia: " + langCode);
             }
+            lineCounter++;
+            if (lineCounter % 1000000 == 0){
+                LOG.info(String.format("Done with %d total lines of Wikidata dump file", lineCounter));
+            }
+
         }
 
         return new MapperIterator<UniversalPage>(backend.keySet()) {
